@@ -3,20 +3,20 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.6.11822.322 stable
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemarkableSync", "RemarkableSync\RemarkableSync.csproj", "{090B923F-25A0-4204-846C-71C0C7F50743}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "reMarkableSync", "reMarkableSync\RemarkableSync.csproj", "{090B923F-25A0-4204-846C-71C0C7F50743}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleTest", "ConsoleTest\ConsoleTest.csproj", "{C23909A9-5D87-4E94-B69D-B87150054B3F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RemarkableSyncConsoleTest", "RemarkableSyncConsoleTest\ConsoleTest.csproj", "{C23909A9-5D87-4E94-B69D-B87150054B3F}"
 	ProjectSection(ProjectDependencies) = postProject
 		{6FA7BD3B-28C8-4B93-B0AC-99F022986488} = {6FA7BD3B-28C8-4B93-B0AC-99F022986488}
 		{090B923F-25A0-4204-846C-71C0C7F50743} = {090B923F-25A0-4204-846C-71C0C7F50743}
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OnenoteAddin", "OnenoteAddin\OnenoteAddin.csproj", "{6FA7BD3B-28C8-4B93-B0AC-99F022986488}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OneNoteAddin", "OneNoteAddin\OnenoteAddin.csproj", "{6FA7BD3B-28C8-4B93-B0AC-99F022986488}"
 	ProjectSection(ProjectDependencies) = postProject
 		{090B923F-25A0-4204-846C-71C0C7F50743} = {090B923F-25A0-4204-846C-71C0C7F50743}
 	EndProjectSection
 EndProject
-Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "OnenoteAddinSetup", "OnenoteAddinSetup\OnenoteAddinSetup.vdproj", "{166B26BF-F8F8-4298-8D8A-A27420646FE6}"
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "OneNoteAddinSetup", "OneNoteAddinSetup\OnenoteAddinSetup.vdproj", "{166B26BF-F8F8-4298-8D8A-A27420646FE6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
