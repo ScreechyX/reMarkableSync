@@ -16,6 +16,12 @@ namespace RemarkableSync.document
         PINK = 5,
         BLUE = 6,
         RED = 7,
-        GRAY_OVERLAP = 8
+        GRAY_OVERLAP = 8,
+        // Newer firmware: actual color stored in color_rgba field of the stroke
+        HIGHLIGHT = 9,
+        GREEN_2 = 10,
+        CYAN = 11,
+        MAGENTA = 12,
+        YELLOW_2 = 13
     }
 }

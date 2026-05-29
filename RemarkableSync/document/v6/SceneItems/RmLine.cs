@@ -15,6 +15,8 @@ namespace RemarkableSync.document.v6.SceneItems
         public List<RmPoint> points = new List<RmPoint>();
         public double thickness_scale;
         public float starting_length;
+        // Optional: newer firmware stores exact RGBA color here (used when penColor == HIGHLIGHT)
+        public Color? color_rgba = null;
 
         public bool IsVisible()
         {

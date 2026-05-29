@@ -165,6 +165,15 @@ namespace RemarkableSync.document.v6
                     return Color.FromArgb(alpha, 0, 85, 255);
                 case RmPenColor.RED:
                     return Color.FromArgb(alpha, 255, 0, 0);
+                case RmPenColor.HIGHLIGHT:
+                case RmPenColor.YELLOW_2:
+                    return Color.FromArgb(alpha, 255, 248, 0);
+                case RmPenColor.GREEN_2:
+                    return Color.FromArgb(alpha, 0, 168, 0);
+                case RmPenColor.CYAN:
+                    return Color.FromArgb(alpha, 0, 200, 200);
+                case RmPenColor.MAGENTA:
+                    return Color.FromArgb(alpha, 200, 0, 200);
                 case RmPenColor.BLACK:
                 default:
                     return Color.FromArgb(alpha, 0, 0, 0);
@@ -176,7 +185,16 @@ namespace RemarkableSync.document.v6
             bool highlight = IsHighlighter(line.pen);
             if (color == null)
             {
-                color = PenColorToColor(line.penColor, highlight);
+                if (line.color_rgba.HasValue)
+                {
+                    // Newer firmware stores the exact color; apply highlight opacity if needed
+                    Color c = line.color_rgba.Value;
+                    color = highlight ? Color.FromArgb(64, c.R, c.G, c.B) : c;
+                }
+                else
+                {
+                    color = PenColorToColor(line.penColor, highlight);
+                }
             }
             // Highlighter base width is ~30px on the reMarkable screen; thickness_scale scales it
             float width = highlight ? (float)(30.0 * line.thickness_scale) : (float)line.thickness_scale;
@@ -660,6 +678,22 @@ namespace RemarkableSync.document.v6
                     {
                         l.points.Add(PointFromStream(subblock));
                     }
+                }
+
+                // Tags 6 (timestamp) and 7 (move_id) are optional — skip if present
+                if (reader.CheckTag(6, TaggedBinaryReader.TagType.ID))
+                    reader.ReadTaggedId(6);
+                if (reader.CheckTag(7, TaggedBinaryReader.TagType.ID))
+                    reader.ReadTaggedId(7);
+                // Tag 8: optional RGBA color packed as uint32 BGRA (little-endian)
+                if (reader.CheckTag(8, TaggedBinaryReader.TagType.Byte4))
+                {
+                    uint packed = (uint)reader.ReadTaggedUInt32(8);
+                    int r = (int)((packed >> 16) & 0xFF);
+                    int g = (int)((packed >> 8) & 0xFF);
+                    int b = (int)(packed & 0xFF);
+                    int a = (int)((packed >> 24) & 0xFF);
+                    l.color_rgba = Color.FromArgb(a > 0 ? a : 255, r, g, b);
                 }
 
                 return l;
