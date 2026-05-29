@@ -94,6 +94,10 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
+    <Reference Include="System.ValueTuple">
+      <HintPath>$(USERPROFILE)\.nuget\packages\system.valuetuple\4.6.2\lib\net47\System.ValueTuple.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AddIn.cs" />
