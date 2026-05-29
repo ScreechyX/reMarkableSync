@@ -118,16 +118,23 @@ namespace RemarkableSync.document.v6
             graphics.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceOver;
             graphics.Clear(Color.White);
 
+            // Draw highlights first so ink strokes render on top
             foreach (BlockList block in _blocks)
             {
                 if (block is SceneLineItemBlock)
                 {
                     RmLine line = ((SceneLineItemBlock)block).GetLine();
-                    if (line != null)
-                    {
+                    if (line != null && IsHighlighter(line.pen))
                         DrawStroke(line, ref graphics);
-                    }
-
+                }
+            }
+            foreach (BlockList block in _blocks)
+            {
+                if (block is SceneLineItemBlock)
+                {
+                    RmLine line = ((SceneLineItemBlock)block).GetLine();
+                    if (line != null && !IsHighlighter(line.pen))
+                        DrawStroke(line, ref graphics);
                 }
             }
 
@@ -137,9 +144,10 @@ namespace RemarkableSync.document.v6
         private static bool IsHighlighter(RmPen pen) =>
             pen == RmPen.HIGHLIGHTER_1 || pen == RmPen.HIGHLIGHTER_2;
 
+        // Alpha 64 = 25% opacity for highlights, matching reMarkable's rendering
         private static Color PenColorToColor(RmPenColor penColor, bool highlight)
         {
-            int alpha = highlight ? 100 : 255;
+            int alpha = highlight ? 64 : 255;
             switch (penColor)
             {
                 case RmPenColor.GREY:
@@ -148,15 +156,15 @@ namespace RemarkableSync.document.v6
                 case RmPenColor.WHITE:
                     return Color.FromArgb(alpha, 255, 255, 255);
                 case RmPenColor.YELLOW:
-                    return Color.FromArgb(alpha, 255, 235, 50);
+                    return Color.FromArgb(alpha, 255, 248, 0);
                 case RmPenColor.GREEN:
-                    return Color.FromArgb(alpha, 0, 180, 0);
+                    return Color.FromArgb(alpha, 0, 168, 0);
                 case RmPenColor.PINK:
-                    return Color.FromArgb(alpha, 255, 105, 180);
+                    return Color.FromArgb(alpha, 255, 82, 162);
                 case RmPenColor.BLUE:
-                    return Color.FromArgb(alpha, 50, 100, 255);
+                    return Color.FromArgb(alpha, 0, 85, 255);
                 case RmPenColor.RED:
-                    return Color.FromArgb(alpha, 220, 30, 30);
+                    return Color.FromArgb(alpha, 255, 0, 0);
                 case RmPenColor.BLACK:
                 default:
                     return Color.FromArgb(alpha, 0, 0, 0);
@@ -170,7 +178,8 @@ namespace RemarkableSync.document.v6
             {
                 color = PenColorToColor(line.penColor, highlight);
             }
-            float width = highlight ? (float)(line.thickness_scale * 8.0) : (float)line.thickness_scale;
+            // Highlighter base width is ~30px on the reMarkable screen; thickness_scale scales it
+            float width = highlight ? (float)(30.0 * line.thickness_scale) : (float)line.thickness_scale;
 
             Pen pen = new Pen(color.GetValueOrDefault(Color.Black), width);
 

@@ -33,9 +33,15 @@ namespace RemarkableSync.document.v5
 
         static private void DrawLayer(RmLayer layer, ref Graphics graphics)
         {
+            // Highlights first so ink renders on top
             foreach (RmStroke stroke in layer.Objects)
             {
-                if (stroke.IsVisible())
+                if (stroke.IsVisible() && IsHighlighter(stroke.Pen))
+                    DrawStroke(stroke, ref graphics);
+            }
+            foreach (RmStroke stroke in layer.Objects)
+            {
+                if (stroke.IsVisible() && !IsHighlighter(stroke.Pen))
                 {
                     DrawStroke(stroke, ref graphics);
                 }
@@ -45,9 +51,10 @@ namespace RemarkableSync.document.v5
         static private bool IsHighlighter(RmPen pen) =>
             pen == RmPen.HIGHLIGHTER_1 || pen == RmPen.HIGHLIGHTER_2;
 
+        // Alpha 64 = 25% opacity for highlights, matching reMarkable's rendering
         static private Color PenColorToColor(RmPenColor penColor, bool highlight)
         {
-            int alpha = highlight ? 100 : 255;
+            int alpha = highlight ? 64 : 255;
             switch (penColor)
             {
                 case RmPenColor.GREY:
@@ -56,15 +63,15 @@ namespace RemarkableSync.document.v5
                 case RmPenColor.WHITE:
                     return Color.FromArgb(alpha, 255, 255, 255);
                 case RmPenColor.YELLOW:
-                    return Color.FromArgb(alpha, 255, 235, 50);
+                    return Color.FromArgb(alpha, 255, 248, 0);
                 case RmPenColor.GREEN:
-                    return Color.FromArgb(alpha, 0, 180, 0);
+                    return Color.FromArgb(alpha, 0, 168, 0);
                 case RmPenColor.PINK:
-                    return Color.FromArgb(alpha, 255, 105, 180);
+                    return Color.FromArgb(alpha, 255, 82, 162);
                 case RmPenColor.BLUE:
-                    return Color.FromArgb(alpha, 50, 100, 255);
+                    return Color.FromArgb(alpha, 0, 85, 255);
                 case RmPenColor.RED:
-                    return Color.FromArgb(alpha, 220, 30, 30);
+                    return Color.FromArgb(alpha, 255, 0, 0);
                 case RmPenColor.BLACK:
                 default:
                     return Color.FromArgb(alpha, 0, 0, 0);
@@ -75,7 +82,8 @@ namespace RemarkableSync.document.v5
         {
             bool highlight = IsHighlighter(stroke.Pen);
             Color color = PenColorToColor(stroke.Colour, highlight);
-            float width = highlight ? stroke.Width * 8f : stroke.Width;
+            // v5 Width field is already the actual stroke width in pixels
+            float width = stroke.Width;
 
             Pen pen = new Pen(color, width);
 
