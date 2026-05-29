@@ -96,7 +96,7 @@ namespace RemarkableSync
             Directory.CreateDirectory(dir);
             string fullPathFilename = Path.Combine(dir, filename);
 
-            Stream stream = await _httpHelper.GetStreamFromHashAsync(file.Hash);
+            Stream stream = await _httpHelper.GetStreamFromHashAsync(file.Hash, file.DocumentID);
             if (stream == null)
             {
                 Logger.Debug($"Downloading file: {file.DocumentID}, hash: {file.Hash} - returned null stream");

@@ -11,6 +11,7 @@ namespace RemarkableSync
         private static string SyncHost = "https://internal.cloud.remarkable.com";
         private static string RootUrl = SyncHost + "/sync/v4/root";
         private static string BlobUrl = SyncHost + "/sync/v3/files/";
+        private const string RmFileNameHeader = "rm-filename";
 
         private HttpClient _client;
 
@@ -21,9 +22,9 @@ namespace RemarkableSync
             _client = client;
         }
 
-        public async Task<BlobStream> GetBlobStreamFromHashAsync(string hash)
+        public async Task<BlobStream> GetBlobStreamFromHashAsync(string hash, string rmFilename)
         {
-            Logger.Debug($"Entering: ..  hash = {hash}");
+            Logger.Debug($"Entering: hash={hash} rmFilename={rmFilename}");
             try
             {
                 if (hash == "root")
@@ -42,8 +43,9 @@ namespace RemarkableSync
                     };
                 }
 
-                // v3 blob: direct GET, no signed-URL indirection
-                HttpResponseMessage response = await _client.GetAsync(BlobUrl + hash);
+                var request = new HttpRequestMessage(HttpMethod.Get, BlobUrl + hash);
+                request.Headers.Add(RmFileNameHeader, rmFilename);
+                HttpResponseMessage response = await _client.SendAsync(request);
                 if (!response.IsSuccessStatusCode)
                 {
                     throw new Exception($"Blob request failed with status code {response.StatusCode}");
@@ -62,12 +64,14 @@ namespace RemarkableSync
             }
         }
 
-        public async Task<Stream> GetStreamFromHashAsync(string hash)
+        public async Task<Stream> GetStreamFromHashAsync(string hash, string rmFilename)
         {
-            Logger.Debug($"Entering: ..  hash = {hash}");
+            Logger.Debug($"Entering: hash={hash} rmFilename={rmFilename}");
             try
             {
-                HttpResponseMessage response = await _client.GetAsync(BlobUrl + hash);
+                var request = new HttpRequestMessage(HttpMethod.Get, BlobUrl + hash);
+                request.Headers.Add(RmFileNameHeader, rmFilename);
+                HttpResponseMessage response = await _client.SendAsync(request);
                 if (!response.IsSuccessStatusCode)
                 {
                     throw new Exception($"Blob stream request failed with status code {response.StatusCode}");

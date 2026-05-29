@@ -43,7 +43,7 @@ namespace RemarkableSync
         {
             // TODO: progress reporting
             Logger.Debug("Entering ... ");
-            BlobStream rootHashBlob = await _httpHelper.GetBlobStreamFromHashAsync("root");
+            BlobStream rootHashBlob = await _httpHelper.GetBlobStreamFromHashAsync("root", "root");
             if (rootHashBlob == null)
             {
                 Logger.Error("Unable to get root blob for syncing");
@@ -58,7 +58,7 @@ namespace RemarkableSync
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            BlobStream rootBlob = await _httpHelper.GetBlobStreamFromHashAsync(rootHashBlob.Blob);
+            BlobStream rootBlob = await _httpHelper.GetBlobStreamFromHashAsync(rootHashBlob.Blob, "root.docSchema");
             var latestDocFiles = ParseIndex(rootBlob.Blob);
             if (latestDocFiles == null)
             {
@@ -289,7 +289,7 @@ namespace RemarkableSync
 
         private async Task<bool> GetMetadataForDocAsync(Doc doc, int totalCount, CancellationToken cancellationToken, IProgress<string> progress)
         {
-            BlobStream docBlob = await _httpHelper.GetBlobStreamFromHashAsync(doc.Hash);
+            BlobStream docBlob = await _httpHelper.GetBlobStreamFromHashAsync(doc.Hash, doc.DocumentID + ".docSchema");
             var docfiles = ParseIndex(docBlob.Blob);
             if (docfiles == null)
             {
@@ -319,7 +319,7 @@ namespace RemarkableSync
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            BlobStream metadataBlobStream = await _httpHelper.GetBlobStreamFromHashAsync(docfiles[metadataDocId].Hash);
+            BlobStream metadataBlobStream = await _httpHelper.GetBlobStreamFromHashAsync(docfiles[metadataDocId].Hash, metadataDocId);
             try
             {
                 MetadataFile metadata = JsonSerializer.Deserialize<MetadataFile>(metadataBlobStream.Blob);
