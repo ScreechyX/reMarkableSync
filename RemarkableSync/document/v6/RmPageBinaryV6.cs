@@ -115,6 +115,7 @@ namespace RemarkableSync.document.v6
 
             Graphics graphics = Graphics.FromImage(image);
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            graphics.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceOver;
             graphics.Clear(Color.White);
 
             foreach (BlockList block in _blocks)
@@ -133,42 +134,45 @@ namespace RemarkableSync.document.v6
             return image;
         }
 
+        private static bool IsHighlighter(RmPen pen) =>
+            pen == RmPen.HIGHLIGHTER_1 || pen == RmPen.HIGHLIGHTER_2;
+
+        private static Color PenColorToColor(RmPenColor penColor, bool highlight)
+        {
+            int alpha = highlight ? 100 : 255;
+            switch (penColor)
+            {
+                case RmPenColor.GREY:
+                case RmPenColor.GRAY_OVERLAP:
+                    return Color.FromArgb(alpha, 128, 128, 128);
+                case RmPenColor.WHITE:
+                    return Color.FromArgb(alpha, 255, 255, 255);
+                case RmPenColor.YELLOW:
+                    return Color.FromArgb(alpha, 255, 235, 50);
+                case RmPenColor.GREEN:
+                    return Color.FromArgb(alpha, 0, 180, 0);
+                case RmPenColor.PINK:
+                    return Color.FromArgb(alpha, 255, 105, 180);
+                case RmPenColor.BLUE:
+                    return Color.FromArgb(alpha, 50, 100, 255);
+                case RmPenColor.RED:
+                    return Color.FromArgb(alpha, 220, 30, 30);
+                case RmPenColor.BLACK:
+                default:
+                    return Color.FromArgb(alpha, 0, 0, 0);
+            }
+        }
+
         internal void DrawStroke(RmLine line, ref Graphics graphics, Color? color = null)
         {
+            bool highlight = IsHighlighter(line.pen);
             if (color == null)
             {
-                switch (line.penColor)
-                {
-                    case RmPenColor.GREY:
-                    case RmPenColor.GRAY_OVERLAP:
-                        color = Color.Gray;
-                        break;
-                    case RmPenColor.WHITE:
-                        color = Color.White;
-                        break;
-                    case RmPenColor.YELLOW:
-                        color = Color.FromArgb(255, 235, 50);
-                        break;
-                    case RmPenColor.GREEN:
-                        color = Color.FromArgb(0, 180, 0);
-                        break;
-                    case RmPenColor.PINK:
-                        color = Color.FromArgb(255, 105, 180);
-                        break;
-                    case RmPenColor.BLUE:
-                        color = Color.FromArgb(50, 100, 255);
-                        break;
-                    case RmPenColor.RED:
-                        color = Color.FromArgb(220, 30, 30);
-                        break;
-                    case RmPenColor.BLACK:
-                    default:
-                        color = Color.Black;
-                        break;
-                }
+                color = PenColorToColor(line.penColor, highlight);
             }
+            float width = highlight ? (float)(line.thickness_scale * 8.0) : (float)line.thickness_scale;
 
-            Pen pen = new Pen(color.GetValueOrDefault(Color.Black), (float)line.thickness_scale);
+            Pen pen = new Pen(color.GetValueOrDefault(Color.Black), width);
 
             GraphicsPath path = new GraphicsPath();
             Point[] points = new Point[line.points.Count];
