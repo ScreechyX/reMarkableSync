@@ -140,10 +140,26 @@ namespace RemarkableSync.document.v6
                 switch (line.penColor)
                 {
                     case RmPenColor.GREY:
+                    case RmPenColor.GRAY_OVERLAP:
                         color = Color.Gray;
                         break;
                     case RmPenColor.WHITE:
                         color = Color.White;
+                        break;
+                    case RmPenColor.YELLOW:
+                        color = Color.FromArgb(255, 235, 50);
+                        break;
+                    case RmPenColor.GREEN:
+                        color = Color.FromArgb(0, 180, 0);
+                        break;
+                    case RmPenColor.PINK:
+                        color = Color.FromArgb(255, 105, 180);
+                        break;
+                    case RmPenColor.BLUE:
+                        color = Color.FromArgb(50, 100, 255);
+                        break;
+                    case RmPenColor.RED:
+                        color = Color.FromArgb(220, 30, 30);
                         break;
                     case RmPenColor.BLACK:
                     default:
