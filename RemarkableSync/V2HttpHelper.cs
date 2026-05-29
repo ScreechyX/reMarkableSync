@@ -1,6 +1,5 @@
-﻿using System;
+using System;
 using System.IO;
-using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
@@ -9,9 +8,9 @@ namespace RemarkableSync
 {
     class V2HttpHelper
     {
-        private static string BlobHost = "https://internal.cloud.remarkable.com";
-        private static string DownloadUrl = BlobHost + "/sync/v2/signed-urls/downloads";
-        private static string HeaderGeneration = "x-goog-generation";
+        private static string SyncHost = "https://internal.cloud.remarkable.com";
+        private static string RootUrl = SyncHost + "/sync/v4/root";
+        private static string BlobUrl = SyncHost + "/sync/v3/files/";
 
         private HttpClient _client;
 
@@ -22,66 +21,44 @@ namespace RemarkableSync
             _client = client;
         }
 
-        private async Task<string> GetUrlAsync(string hash)
-        {
-            try
-            {
-                var requestContent = new BlobStorageRequest
-                {
-                    http_method = "GET",
-                    relative_path = hash
-                };
-                HttpResponseMessage response = await HttpClientJsonExtensions.PostAsJsonAsync(_client, new Uri(DownloadUrl), requestContent);
-                if (!response.IsSuccessStatusCode)
-                {
-                    throw new Exception($"Request failed with status code {response.StatusCode}");
-                }
-
-                BlobStorageResponse blobResponse = await HttpContentJsonExtensions.ReadFromJsonAsync<BlobStorageResponse>(response.Content);
-                return blobResponse.url;
-            }
-            catch (Exception err)
-            {
-                Logger.Error($"Failed to get url for hash: {hash}. err: {err.ToString()} ");
-                return "";
-            }
-        }
-
         public async Task<BlobStream> GetBlobStreamFromHashAsync(string hash)
         {
             Logger.Debug($"Entering: ..  hash = {hash}");
             try
             {
-                string url = await GetUrlAsync(hash);
-                if (url == "")
+                if (hash == "root")
                 {
-                    throw new Exception($"Failed to determine GET url");
+                    // v4 root returns JSON {"hash":"...","generation":...}
+                    HttpResponseMessage rootResponse = await _client.GetAsync(RootUrl);
+                    if (!rootResponse.IsSuccessStatusCode)
+                    {
+                        throw new Exception($"Root request failed with status code {rootResponse.StatusCode}");
+                    }
+                    BlobRootResponse rootJson = await HttpContentJsonExtensions.ReadFromJsonAsync<BlobRootResponse>(rootResponse.Content);
+                    return new BlobStream
+                    {
+                        Blob = rootJson.hash,
+                        Generation = rootJson.generation
+                    };
                 }
 
-                var request = new HttpRequestMessage
-                {
-                    RequestUri = new Uri(url),
-                    Method = HttpMethod.Get
-                };
-
-                HttpResponseMessage response = await _client.SendAsync(request);
+                // v3 blob: direct GET, no signed-URL indirection
+                HttpResponseMessage response = await _client.GetAsync(BlobUrl + hash);
                 if (!response.IsSuccessStatusCode)
                 {
-                    throw new Exception($"Request failed with status code {response.StatusCode}");
+                    throw new Exception($"Blob request failed with status code {response.StatusCode}");
                 }
 
-                BlobStream blobStream = new BlobStream
+                return new BlobStream
                 {
-                    Generation = long.Parse(response.Headers.GetValues(HeaderGeneration).First()),
-                    Blob = await response.Content.ReadAsStringAsync()
+                    Blob = await response.Content.ReadAsStringAsync(),
+                    Generation = 0
                 };
-
-                return blobStream;
             }
             catch (Exception err)
             {
-                Logger.Error($"Failed to complete GET for hash: {hash}. err: {err.ToString()} ");
-                return null;
+                Logger.Error($"Failed to GET hash: {hash}. err: {err.ToString()} ");
+                throw;
             }
         }
 
@@ -90,29 +67,16 @@ namespace RemarkableSync
             Logger.Debug($"Entering: ..  hash = {hash}");
             try
             {
-                string url = await GetUrlAsync(hash);
-                if (url == "")
-                {
-                    throw new Exception($"Failed to determine GET url");
-                }
-
-                var request = new HttpRequestMessage
-                {
-                    RequestUri = new Uri(url),
-                    Method = HttpMethod.Get
-                };
-
-                HttpResponseMessage response = await _client.SendAsync(request);
+                HttpResponseMessage response = await _client.GetAsync(BlobUrl + hash);
                 if (!response.IsSuccessStatusCode)
                 {
-                    throw new Exception($"Request failed with status code {response.StatusCode}");
+                    throw new Exception($"Blob stream request failed with status code {response.StatusCode}");
                 }
-
                 return await response.Content.ReadAsStreamAsync();
             }
             catch (Exception err)
             {
-                Logger.Error($"Failed to complete GET for hash: {hash}. err: {err.ToString()} ");
+                Logger.Error($"Failed to GET stream for hash: {hash}. err: {err.ToString()} ");
                 return null;
             }
         }
@@ -124,17 +88,10 @@ namespace RemarkableSync
         public long Generation { get; set; }
     }
 
-    class BlobStorageRequest
+    class BlobRootResponse
     {
-        public string http_method { get; set; }
-        public string relative_path { get; set; }
-    }
-
-    class BlobStorageResponse
-    {
-        public string relative_path { get; set; }
-        public string url { get; set; }
-        public string expires { get; set; }
-        public string method { get; set; }
+        public string hash { get; set; }
+        public long generation { get; set; }
+        public long schemaVersion { get; set; }
     }
 }
