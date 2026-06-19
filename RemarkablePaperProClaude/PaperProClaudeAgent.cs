@@ -1,22 +1,20 @@
 using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using RemarkableSync;
-using RemarkableSync.document;
 
 namespace RemarkablePaperProClaude
 {
     /// <summary>
-    /// Orchestrates one "ask Claude" cycle: pull the trigger notebook from the
-    /// reMarkable cloud (linked with a one-time connect code, like the OneNote
-    /// add-in), render its latest page, have Claude read and answer the
-    /// handwriting, then save the answer as a PDF (and optionally push it back to
-    /// the device over SSH).
+    /// Orchestrates one "ask Claude" cycle, using the external rmapi binary for both
+    /// directions of the reMarkable cloud: download the trigger notebook, render its
+    /// latest page, have Claude read and answer the handwriting, then upload the
+    /// answer back as a PDF (which syncs to the device).
     /// </summary>
     public class PaperProClaudeAgent
     {
@@ -29,48 +27,23 @@ namespace RemarkablePaperProClaude
 
         public async Task RunOnceAsync(CancellationToken ct)
         {
-            using (var configStore = new FileConfigStore(_options.ConfigPath))
-            using (var dataSource = new RmCloudDataSource(configStore))
+            var rmapi = new RmapiClient(_options.RmapiPath);
+            Console.WriteLine("Checking rmapi ...");
+            rmapi.EnsureReady();
+
+            string workDir = Path.Combine(Path.GetTempPath(), "rmpp-claude-" + Guid.NewGuid().ToString("N"));
+            try
             {
-                if (!string.IsNullOrWhiteSpace(_options.ConnectCode))
-                {
-                    Console.WriteLine("Linking to your reMarkable cloud account with the one-time code ...");
-                    bool registered = await dataSource.RegisterWithOneTimeCode(_options.ConnectCode.Trim());
-                    if (!registered)
-                    {
-                        throw new Exception(
-                            "Could not register with that connect code. Codes expire quickly - get a fresh " +
-                            "one from https://my.remarkable.com/device/desktop/connect and try again.");
-                    }
-                    Console.WriteLine(
-                        $"Linked. The token is saved to {_options.ConfigPath}; you won't need a code next time.");
-                }
+                Console.WriteLine($"Downloading notebook \"{_options.NotebookName}\" via rmapi ...");
+                string contentFolder = rmapi.DownloadToFolder(_options.NotebookName, workDir);
 
-                Console.WriteLine("Connecting to the reMarkable cloud ...");
-                List<RmItem> hierarchy;
-                try
-                {
-                    hierarchy = await dataSource.GetItemHierarchy(ct, new Progress<string>());
-                }
-                catch (Exception err)
-                {
-                    throw new Exception(
-                        "Could not read from the reMarkable cloud. If this is the first run, link your account " +
-                        "with --connect-code <code> (get one at https://my.remarkable.com/device/desktop/connect). " +
-                        "Underlying error: " + err.Message);
-                }
+                string contentFile = Directory.GetFiles(contentFolder, "*.content").FirstOrDefault();
+                if (contentFile == null)
+                    throw new Exception("Downloaded notebook is missing its .content file.");
+                string uuid = Path.GetFileNameWithoutExtension(contentFile);
 
-                RmItem notebook = FindNotebook(hierarchy, _options.NotebookName);
-                if (notebook == null)
-                {
-                    throw new Exception(
-                        $"Could not find a notebook named \"{_options.NotebookName}\" in your reMarkable cloud. " +
-                        "Create one with that exact name (or pass --notebook). The cloud syncs on a delay, so " +
-                        "make sure your latest page has finished syncing.");
-                }
-
-                Console.WriteLine($"Found notebook \"{notebook.VissibleName}\". Downloading ...");
-                using (RmDocument doc = await dataSource.DownloadDocument(notebook.ID, ct, new Progress<string>()))
+                using (var localSource = new LocalFolderDataSource(contentFolder))
+                using (RmDocument doc = await localSource.DownloadDocument(uuid, ct, new Progress<string>()))
                 {
                     if (doc.PageCount == 0)
                         throw new Exception("The notebook has no pages.");
@@ -106,53 +79,21 @@ namespace RemarkablePaperProClaude
                     Console.WriteLine();
 
                     byte[] pdf = PdfTextWriter.Create(BuildAnswerDocument(answer, taskLabel));
-                    string pdfPath = Path.Combine(_options.OutputDirectory, "claude-answer.pdf");
+                    string pdfName = $"Claude {taskLabel} - {DateTime.Now:yyyy-MM-dd HH-mm}.pdf";
+                    string pdfPath = Path.Combine(_options.OutputDirectory, pdfName);
                     File.WriteAllBytes(pdfPath, pdf);
                     File.WriteAllText(Path.Combine(_options.OutputDirectory, "claude-answer.txt"), answer);
                     Console.WriteLine($"Saved answer to {pdfPath}");
 
-                    bool canPushOverSsh =
-                        !string.IsNullOrWhiteSpace(_options.SshHost) &&
-                        !string.IsNullOrWhiteSpace(_options.SshPassword);
-
-                    if (canPushOverSsh)
-                    {
-                        Console.WriteLine("Pushing the answer onto the device over SSH ...");
-                        using (var writer = new RmDeviceWriter(_options.SshHost, _options.SshPassword))
-                        {
-                            string docName = $"Claude {taskLabel} - {DateTime.Now:yyyy-MM-dd HH:mm}";
-                            writer.UploadPdfDocument(pdf, docName, notebook.Parent);
-                            writer.RestartUi();
-                        }
-                        Console.WriteLine("Done. The answer should appear on your reMarkable shortly.");
-                    }
-                    else
-                    {
-                        // The reMarkable cloud API is read-only in this tool, so we can't upload
-                        // through the cloud. Leave the PDF locally for the user to import.
-                        Console.WriteLine(
-                            $"Answer saved to {pdfPath}. To get it onto the device, import that PDF via the " +
-                            "reMarkable app, or re-run with --ssh-host/--ssh-password to push it over SSH.");
-                    }
+                    Console.WriteLine($"Uploading answer to \"{_options.RmapiDest}\" via rmapi ...");
+                    rmapi.Upload(pdfPath, _options.RmapiDest);
+                    Console.WriteLine("Done. The answer was uploaded and will sync to your reMarkable shortly.");
                 }
             }
-        }
-
-        private static RmItem FindNotebook(List<RmItem> roots, string name)
-        {
-            var stack = new Stack<RmItem>(roots);
-            while (stack.Count > 0)
+            finally
             {
-                RmItem item = stack.Pop();
-                if (item.Type == RmItem.DocumentType &&
-                    string.Equals(item.VissibleName, name, StringComparison.OrdinalIgnoreCase))
-                {
-                    return item;
-                }
-                foreach (RmItem child in item.Children)
-                    stack.Push(child);
+                TryDeleteDirectory(workDir);
             }
-            return null;
         }
 
         private static byte[] ToPng(Bitmap bmp)
@@ -173,6 +114,19 @@ namespace RemarkablePaperProClaude
             catch
             {
                 // Debug artifact only — never fail the run because we couldn't save it.
+            }
+        }
+
+        private static void TryDeleteDirectory(string path)
+        {
+            try
+            {
+                if (Directory.Exists(path))
+                    Directory.Delete(path, true);
+            }
+            catch
+            {
+                // Temp folder cleanup is best-effort.
             }
         }
 

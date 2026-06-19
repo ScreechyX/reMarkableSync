@@ -2,39 +2,45 @@
 
 Ask **Claude** about a handwritten page on your **reMarkable** (Paper Pro / rM1 / rM2).
 
-You write a question by hand in a notebook called **"Claude"**, run this tool,
-and Claude's answer comes back as a PDF.
+You write a question by hand in a notebook called **"Claude"**, run this tool, and
+Claude's answer is uploaded back to your reMarkable as a PDF — fully over the
+cloud, no SSH or USB cable.
 
-It connects to your reMarkable the **same way the OneNote add-in does** — through
-your **reMarkable cloud account**, linked once with a one-time **connect code**.
-No SSH or USB cable needed.
+It uses [**rmapi**](https://github.com/ddvk/rmapi) for both directions of the
+reMarkable cloud: rmapi can **download and upload** (the built-in RemarkableSync
+cloud client is download-only), so the whole round trip works through the cloud.
 
 ```
- ┌─────────────┐   cloud sync   ┌──────────────────────┐   Vision API   ┌────────┐
- │ reMarkable  │ ─────────────▶ │ RemarkablePaperPro   │ ─────────────▶ │ Claude │
- │ notebook    │  (connect      │ Claude (this tool)   │ ◀───────────── │        │
- │ "Claude"    │   code)        │ render → ask → PDF   │   answer text  └────────┘
- └─────────────┘                └──────────────────────┘
+ ┌─────────────┐   rmapi get    ┌──────────────────────┐  Vision API   ┌────────┐
+ │ reMarkable  │ ─────────────▶ │ RemarkablePaperPro   │ ────────────▶ │ Claude │
+ │ notebook    │                │ Claude (this tool)   │ ◀──────────── │        │
+ │ "Claude"    │ ◀───────────── │ render → ask → PDF   │  answer text  └────────┘
+ └─────────────┘   rmapi put    └──────────────────────┘
 ```
 
 ## How it works
 
-1. Links to your reMarkable cloud account with a one-time connect code (reusing
-   the `RemarkableSync` library's cloud client). The token is saved, so you only
-   enter a code once.
-2. Finds the notebook named `Claude` and renders its **latest page** to a PNG —
-   no OCR setup needed; **Claude reads the handwriting directly** with its vision
-   API.
+1. `rmapi get` downloads the notebook named `Claude` and the tool unpacks it.
+2. Renders its **latest page** to a PNG using the `RemarkableSync` `.rm` renderer —
+   no OCR setup needed; **Claude reads the handwriting directly** with its vision API.
 3. Sends the page image to the Claude Messages API and gets a text answer.
-4. Saves the answer as a PDF (and as plain text). Optionally pushes the PDF back
-   onto the device over SSH.
+4. Builds a PDF of the answer and `rmapi put`s it back into your cloud, where it
+   syncs to the device.
 
 ## Setup
 
-### 1. Get a reMarkable connect code
-Go to <https://my.remarkable.com/device/desktop/connect> while signed in to your
-reMarkable account and generate a one-time code. (Codes expire after a few
-minutes, so grab one right before the first run.)
+### 1. Install and link rmapi
+Download rmapi from <https://github.com/ddvk/rmapi> (or `go install
+github.com/ddvk/rmapi@latest`) and put it on your `PATH`. Run it once and link it
+to your account with a one-time code from
+<https://my.remarkable.com/device/desktop/connect>:
+
+```
+rmapi        # follow the prompt, paste the connect code
+```
+
+rmapi stores its token (in `~/.rmapi`), so you only do this once. This tool then
+reuses that authentication — it never asks for a code itself.
 
 ### 2. Get an Anthropic API key
 Create one at <https://console.anthropic.com>. The tool defaults to the
@@ -47,14 +53,6 @@ of the solution).
 
 ## Usage
 
-**First run** — link your account:
-
-```
-RemarkablePaperProClaude --connect-code <code> --api-key <anthropic-key>
-```
-
-**Later runs** — the saved token is reused, no code needed:
-
 ```
 RemarkablePaperProClaude --api-key <anthropic-key>
 ```
@@ -65,32 +63,24 @@ RemarkablePaperProClaude --api-key <anthropic-key>
 
 | Option | Description |
 | --- | --- |
-| `--connect-code <code>` | One-time code to link your reMarkable cloud account. Only needed once. |
 | `--api-key <key>` | Anthropic API key (default from `ANTHROPIC_API_KEY`). |
 | `--model <id>` | Claude model id (default `claude-opus-4-8`). |
-| `--notebook <name>` | Trigger notebook name (default `Claude`). |
+| `--notebook <path>` | rmapi path of the trigger notebook (default `Claude`). Use a full path like `/Folder/Claude` if it's nested. |
 | `--task <name>` | Force a task instead of detecting a keyword (see below). |
 | `--language <lang>` | Target language for the `translate` task (default `English`). |
 | `--out <dir>` | Where to save artifacts (default: current directory). |
-| `--config <path>` | Where the saved cloud token lives (default `%APPDATA%\RemarkablePaperProClaude\config.json`). |
-| `--ssh-host <ip>` | *Optional:* also push the answer onto the device over SSH. |
-| `--ssh-password <pw>` | *Optional:* SSH password for `--ssh-host`. |
+| `--rmapi <path>` | Path to the rmapi executable (default `rmapi` on PATH). |
+| `--rmapi-dest <dir>` | Cloud folder to upload the answer into (default `/`). Must already exist. |
 | `--list-tasks` | Show the available tasks and their keywords. |
 | `-h`, `--help` | Show help. |
 
-## Getting the answer onto the device
+### Typical flow
 
-The reMarkable cloud API is **read-only** in this tool, so the answer can't be
-uploaded back through the cloud. You have two options:
-
-- **Import the PDF** (`claude-answer.pdf`) via the reMarkable desktop/mobile app
-  or the cloud — simplest, no extra setup.
-- **Push over SSH** (Paper Pro / rM with developer SSH): pass `--ssh-host` and
-  `--ssh-password` (the SSH password is under Settings → Help → About). The tool
-  then uploads the PDF straight into the device and restarts the UI so it appears.
-
-The rendered question (`question.png`), the answer text (`claude-answer.txt`) and
-the answer PDF (`claude-answer.pdf`) are always saved locally either way.
+1. Create a notebook named **Claude** (once) and let it sync.
+2. Write your question on a new page; wait a moment for it to sync to the cloud.
+3. Run the tool.
+4. The answer appears as a **"Claude … "** PDF in your reMarkable (top level, or
+   `--rmapi-dest` folder).
 
 ## Tasks (keywords)
 
@@ -122,16 +112,17 @@ handwriting and is matched case- and punctuation-insensitively.
 
 ## Notes & limitations
 
+- **rmapi is required** and must be authenticated first (see Setup). The tool shells
+  out to it; if it isn't on the PATH, pass `--rmapi <path>`.
 - **Cloud sync delay:** pages appear here only after the device has synced them to
-  the reMarkable cloud. Give it a moment after writing before running the tool.
-- **One page at a time:** the tool reads the *latest* page of the notebook. Start
-  a fresh page for each new question.
-- **Privacy:** the page image is sent to the Anthropic API. Don't use it for
-  pages you don't want to leave your account.
-- **SSH write-back format:** if you use `--ssh-host`, writing the document into the
-  on-device store uses the community-standard layout, which reMarkable changes
-  between firmware versions. If the pushed PDF doesn't show up, just import the
-  saved `claude-answer.pdf` via the app instead.
+  the reMarkable cloud, and the answer appears on the device after it syncs back.
+  Give it a moment in each direction.
+- **One page at a time:** the tool reads the *latest* page of the notebook. Start a
+  fresh page for each new question.
+- **Privacy:** the page image is sent to the Anthropic API. Don't use it for pages
+  you don't want to leave your account.
+- The rendered question (`question.png`), the answer text (`claude-answer.txt`) and
+  the answer PDF are also saved locally in `--out`.
 
 ## Ideas for extending
 

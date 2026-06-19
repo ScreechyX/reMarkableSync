@@ -8,7 +8,10 @@ namespace RemarkablePaperProClaude
     {
         public string ApiKey;
         public string Model = "claude-opus-4-8";
+
+        /// <summary>rmapi path of the trigger notebook (e.g. "Claude" or "/Folder/Claude").</summary>
         public string NotebookName = "Claude";
+
         public string OutputDirectory = ".";
 
         /// <summary>Forced task name. When null, the task is auto-detected from a
@@ -18,20 +21,12 @@ namespace RemarkablePaperProClaude
         /// <summary>Target language for the "translate" task.</summary>
         public string Language = "English";
 
-        // --- reMarkable cloud connection (connect-code flow, like the OneNote add-in) ---
+        // --- reMarkable connection via the external rmapi binary ---
 
-        /// <summary>One-time connect code to link this tool to your reMarkable cloud
-        /// account. Only needed once; afterwards the saved token is reused.</summary>
-        public string ConnectCode;
+        /// <summary>Path to the rmapi executable. Null = "rmapi" on PATH.</summary>
+        public string RmapiPath;
 
-        /// <summary>Where the saved cloud device token lives.</summary>
-        public string ConfigPath;
-
-        // --- Optional: push the answer back onto the device over SSH ---
-        // (the reMarkable cloud API is read-only in this tool, so device write-back
-        //  needs SSH; without it the answer is just saved locally as a PDF.)
-
-        public string SshHost;
-        public string SshPassword;
+        /// <summary>Cloud folder to upload the answer PDF into ("/" = top level).</summary>
+        public string RmapiDest = "/";
     }
 }
