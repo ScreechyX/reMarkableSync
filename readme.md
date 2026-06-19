@@ -1,6 +1,12 @@
 # reMarkable OneNote Addin
 This is a OneNote AddIn for importing digitized notes from the reMarkable tablet.
 
+> **New: Ask Claude on your reMarkable Paper Pro.** The
+> [`RemarkablePaperProClaude`](RemarkablePaperProClaude/README.md) tool lets you
+> write a question by hand on the tablet and get Claude's answer back as a PDF on
+> the device. It reuses this project's SSH device access and `.rm` rendering, and
+> reads your handwriting with Claude's vision API (no OCR setup needed).
+
 ## Version 5.0
 Updated to work with the reMarkable cloud API changes in 2025/2026:
 
