@@ -13,8 +13,10 @@ namespace RemarkablePaperProClaude
 {
     /// <summary>
     /// Orchestrates one "ask Claude" cycle: pull the trigger notebook from the
-    /// device, render its latest page, have Claude read and answer the handwriting,
-    /// then write the answer back to the device as a PDF.
+    /// reMarkable cloud (linked with a one-time connect code, like the OneNote
+    /// add-in), render its latest page, have Claude read and answer the
+    /// handwriting, then save the answer as a PDF (and optionally push it back to
+    /// the device over SSH).
     /// </summary>
     public class PaperProClaudeAgent
     {
@@ -27,19 +29,47 @@ namespace RemarkablePaperProClaude
 
         public async Task RunOnceAsync(CancellationToken ct)
         {
-            Console.WriteLine($"Connecting to reMarkable at {_options.Host} ...");
-            using (var dataSource = new RmSftpDataSource(_options.Host, _options.Password))
+            using (var configStore = new FileConfigStore(_options.ConfigPath))
+            using (var dataSource = new RmCloudDataSource(configStore))
             {
-                List<RmItem> hierarchy = await dataSource.GetItemHierarchy(ct, new Progress<string>());
+                if (!string.IsNullOrWhiteSpace(_options.ConnectCode))
+                {
+                    Console.WriteLine("Linking to your reMarkable cloud account with the one-time code ...");
+                    bool registered = await dataSource.RegisterWithOneTimeCode(_options.ConnectCode.Trim());
+                    if (!registered)
+                    {
+                        throw new Exception(
+                            "Could not register with that connect code. Codes expire quickly - get a fresh " +
+                            "one from https://my.remarkable.com/device/desktop/connect and try again.");
+                    }
+                    Console.WriteLine(
+                        $"Linked. The token is saved to {_options.ConfigPath}; you won't need a code next time.");
+                }
+
+                Console.WriteLine("Connecting to the reMarkable cloud ...");
+                List<RmItem> hierarchy;
+                try
+                {
+                    hierarchy = await dataSource.GetItemHierarchy(ct, new Progress<string>());
+                }
+                catch (Exception err)
+                {
+                    throw new Exception(
+                        "Could not read from the reMarkable cloud. If this is the first run, link your account " +
+                        "with --connect-code <code> (get one at https://my.remarkable.com/device/desktop/connect). " +
+                        "Underlying error: " + err.Message);
+                }
+
                 RmItem notebook = FindNotebook(hierarchy, _options.NotebookName);
                 if (notebook == null)
                 {
                     throw new Exception(
-                        $"Could not find a notebook named \"{_options.NotebookName}\" on the device. " +
-                        "Create one with that exact name (or pass --notebook).");
+                        $"Could not find a notebook named \"{_options.NotebookName}\" in your reMarkable cloud. " +
+                        "Create one with that exact name (or pass --notebook). The cloud syncs on a delay, so " +
+                        "make sure your latest page has finished syncing.");
                 }
 
-                Console.WriteLine($"Found notebook \"{notebook.VissibleName}\" ({notebook.ID}). Downloading ...");
+                Console.WriteLine($"Found notebook \"{notebook.VissibleName}\". Downloading ...");
                 using (RmDocument doc = await dataSource.DownloadDocument(notebook.ID, ct, new Progress<string>()))
                 {
                     if (doc.PageCount == 0)
@@ -81,16 +111,28 @@ namespace RemarkablePaperProClaude
                     File.WriteAllText(Path.Combine(_options.OutputDirectory, "claude-answer.txt"), answer);
                     Console.WriteLine($"Saved answer to {pdfPath}");
 
-                    if (_options.WriteBackToDevice)
+                    bool canPushOverSsh =
+                        !string.IsNullOrWhiteSpace(_options.SshHost) &&
+                        !string.IsNullOrWhiteSpace(_options.SshPassword);
+
+                    if (canPushOverSsh)
                     {
-                        Console.WriteLine("Writing answer back to the device ...");
-                        using (var writer = new RmDeviceWriter(_options.Host, _options.Password))
+                        Console.WriteLine("Pushing the answer onto the device over SSH ...");
+                        using (var writer = new RmDeviceWriter(_options.SshHost, _options.SshPassword))
                         {
                             string docName = $"Claude {taskLabel} - {DateTime.Now:yyyy-MM-dd HH:mm}";
                             writer.UploadPdfDocument(pdf, docName, notebook.Parent);
                             writer.RestartUi();
                         }
                         Console.WriteLine("Done. The answer should appear on your reMarkable shortly.");
+                    }
+                    else
+                    {
+                        // The reMarkable cloud API is read-only in this tool, so we can't upload
+                        // through the cloud. Leave the PDF locally for the user to import.
+                        Console.WriteLine(
+                            $"Answer saved to {pdfPath}. To get it onto the device, import that PDF via the " +
+                            "reMarkable app, or re-run with --ssh-host/--ssh-password to push it over SSH.");
                     }
                 }
             }

@@ -38,10 +38,12 @@
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.Security" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AppOptions.cs" />
     <Compile Include="ClaudeClient.cs" />
+    <Compile Include="FileConfigStore.cs" />
     <Compile Include="PageTask.cs" />
     <Compile Include="PaperProClaudeAgent.cs" />
     <Compile Include="PdfTextWriter.cs" />
