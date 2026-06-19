@@ -67,9 +67,40 @@ RemarkablePaperProClaude
 | `--api-key <key>` | Anthropic API key (default from `ANTHROPIC_API_KEY`). |
 | `--model <id>` | Claude model id (default `claude-opus-4-8`). |
 | `--notebook <name>` | Trigger notebook name (default `Claude`). |
+| `--task <name>` | Force a task instead of detecting a keyword (see below). |
+| `--language <lang>` | Target language for the `translate` task (default `English`). |
 | `--out <dir>` | Where to save artifacts (default: current directory). |
 | `--no-write-back` | Don't upload the answer to the device; just print and save locally. |
+| `--list-tasks` | Show the available tasks and their keywords. |
 | `-h`, `--help` | Show help. |
+
+## Tasks (keywords)
+
+Write a **command keyword on the first line** of the page to choose what Claude
+does with the rest. If the first line isn't a recognised keyword, Claude just
+**answers** the page as a question (the default). You can also force a task with
+`--task <name>`, which skips keyword detection.
+
+| Task | Keywords | What it does |
+| --- | --- | --- |
+| `answer` *(default)* | answer, question, ask, q | Answer the question(s) on the page. |
+| `summarize` | summarize, summary, tldr | Summarize the page. |
+| `cleanup` | cleanup, clean, tidy, transcribe, rewrite | Transcribe and tidy the notes into clean prose. |
+| `expand` | expand, outline, flesh | Expand a rough outline into full prose. |
+| `translate` | translate, translation | Translate the page (target set by `--language`). |
+| `explain` | explain, eli5 | Explain the concept/term/problem on the page. |
+| `todo` | todo, tasks, actions | Extract action items as a numbered list. |
+
+Example — handwrite this on the page:
+
+```
+summarize
+<your meeting notes ...>
+```
+
+…and Claude returns a summary instead of an answer. The detection is done by
+Claude as it reads the page (no on-device OCR), so the keyword can be in your own
+handwriting and is matched case- and punctuation-insensitively.
 
 ### Typical flow
 
@@ -98,5 +129,4 @@ RemarkablePaperProClaude
 
 - Watch mode: poll the notebook and answer automatically when a new page is saved.
 - Append the answer to the *same* notebook instead of a new document.
-- Different tasks (summarize / clean up / translate) selected by a keyword you
-  write at the top of the page.
+- Add your own tasks by editing `TaskLibrary.cs` (name, keywords, instruction).

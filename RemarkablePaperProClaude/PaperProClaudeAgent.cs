@@ -54,10 +54,20 @@ namespace RemarkablePaperProClaude
 
                     SaveArtifact(png, "question.png");
 
-                    Console.WriteLine($"Asking {_options.Model} to read and answer the page ...");
+                    PageTask forcedTask = TaskLibrary.Find(_options.Task);
+                    string systemPrompt = BuildSystemPrompt(forcedTask, _options.Language);
+                    string userInstruction = forcedTask != null
+                        ? "Here is a photo of my handwritten page."
+                        : "Here is a photo of my handwritten page. The first line may be a command keyword.";
+                    string taskLabel = forcedTask != null ? forcedTask.Name : "response";
+
+                    Console.WriteLine(forcedTask != null
+                        ? $"Task: {forcedTask.Name}"
+                        : "Task: auto-detect from keyword (default: answer)");
+                    Console.WriteLine($"Asking {_options.Model} to process the page ...");
                     string answer;
                     using (var claude = new ClaudeClient(_options.ApiKey, _options.Model))
-                        answer = await claude.AnswerHandwrittenPageAsync(png, SystemPrompt, UserInstruction, ct);
+                        answer = await claude.ProcessPageAsync(png, systemPrompt, userInstruction, ct);
 
                     Console.WriteLine();
                     Console.WriteLine("----- Claude's answer -----");
@@ -65,7 +75,7 @@ namespace RemarkablePaperProClaude
                     Console.WriteLine("---------------------------");
                     Console.WriteLine();
 
-                    byte[] pdf = PdfTextWriter.Create(BuildAnswerDocument(answer));
+                    byte[] pdf = PdfTextWriter.Create(BuildAnswerDocument(answer, taskLabel));
                     string pdfPath = Path.Combine(_options.OutputDirectory, "claude-answer.pdf");
                     File.WriteAllBytes(pdfPath, pdf);
                     File.WriteAllText(Path.Combine(_options.OutputDirectory, "claude-answer.txt"), answer);
@@ -76,7 +86,7 @@ namespace RemarkablePaperProClaude
                         Console.WriteLine("Writing answer back to the device ...");
                         using (var writer = new RmDeviceWriter(_options.Host, _options.Password))
                         {
-                            string docName = $"Claude answer - {DateTime.Now:yyyy-MM-dd HH:mm}";
+                            string docName = $"Claude {taskLabel} - {DateTime.Now:yyyy-MM-dd HH:mm}";
                             writer.UploadPdfDocument(pdf, docName, notebook.Parent);
                             writer.RestartUi();
                         }
@@ -124,25 +134,49 @@ namespace RemarkablePaperProClaude
             }
         }
 
-        private static string BuildAnswerDocument(string answer)
+        private static string BuildAnswerDocument(string answer, string taskLabel)
         {
             var sb = new StringBuilder();
-            sb.Append("Claude's answer\n");
+            sb.Append("Claude - ").Append(taskLabel).Append('\n');
             sb.Append(DateTime.Now.ToString("f"));
             sb.Append("\n\n");
             sb.Append(answer);
             return sb.ToString();
         }
 
-        private const string SystemPrompt =
+        private const string BasePersona =
             "You are an assistant embedded in a reMarkable Paper Pro workflow. " +
-            "The user writes a question by hand on the tablet and you receive a picture of that page. " +
-            "Read the handwriting carefully and answer the question(s) directly and concisely. " +
-            "If the page contains several questions, answer each in order. " +
+            "The user writes on the tablet by hand and you receive a picture of one page. " +
+            "Read the handwriting carefully. " +
             "If part of the handwriting is illegible, say which part you could not read rather than guessing. " +
             "Write plain prose suitable for an e-ink display: short paragraphs, no markdown, no tables.";
 
-        private const string UserInstruction =
-            "Here is a photo of my handwritten page. Please read it and answer.";
+        /// <summary>
+        /// Builds the system prompt. When a task is forced, Claude is told to run
+        /// exactly that task; otherwise Claude is given the keyword routing table
+        /// and reads the first line of the page to decide which task to run.
+        /// </summary>
+        private static string BuildSystemPrompt(PageTask forcedTask, string language)
+        {
+            if (forcedTask != null)
+            {
+                string instruction = forcedTask.Instruction.Replace(TaskLibrary.LanguagePlaceholder, language);
+                return BasePersona + "\n\nYour task for this page: " + instruction;
+            }
+
+            var sb = new StringBuilder();
+            sb.Append(BasePersona);
+            sb.Append("\n\nThe first line of the page may be a command keyword that selects what to do ");
+            sb.Append("with the rest of the page. Supported commands:\n");
+            foreach (PageTask task in TaskLibrary.Tasks)
+            {
+                string description = task.Description.Replace(TaskLibrary.LanguagePlaceholder, language);
+                sb.Append("- ").Append(string.Join("/", task.Keywords)).Append(": ").Append(description).Append('\n');
+            }
+            sb.Append("If the first line matches one of these commands (ignoring case and punctuation), ");
+            sb.Append("perform that command on the rest of the page and do not treat the keyword itself as content. ");
+            sb.Append("If the first line is not one of these commands, treat the whole page as a question and answer it.");
+            return sb.ToString();
+        }
     }
 }

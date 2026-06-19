@@ -42,9 +42,10 @@ namespace RemarkablePaperProClaude
         }
 
         /// <summary>
-        /// Sends a PNG of a handwritten page to Claude and returns its text answer.
+        /// Sends a PNG of a handwritten page to Claude with the given system prompt
+        /// and instruction, and returns its text response.
         /// </summary>
-        public async Task<string> AnswerHandwrittenPageAsync(
+        public async Task<string> ProcessPageAsync(
             byte[] pngImage, string systemPrompt, string userInstruction, CancellationToken ct)
         {
             string base64 = Convert.ToBase64String(pngImage);
